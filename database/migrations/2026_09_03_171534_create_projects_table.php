@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('category')->index();
             $table->string('cover_image')->nullable();
             $table->json('gallery')->nullable();
-            $table->string('status')->default('draft')->index(); // draft | published | archived
+            $table->string('status')->default('draft')->index();
             $table->boolean('featured')->default(false)->index();
             $table->unsignedInteger('order')->default(0)->index();
             $table->string('external_url')->nullable();
@@ -28,6 +28,7 @@ return new class extends Migration
             $table->string('og_image')->nullable();
             $table->timestamp('published_at')->nullable()->index();
             $table->timestamps();
+
             $table->index(['status', 'featured', 'order']);
             $table->index(['status', 'order']);
         });

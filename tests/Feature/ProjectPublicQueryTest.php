@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\ProjectController;
 use App\Models\Project;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -12,9 +13,87 @@ class ProjectPublicQueryTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_projects_table_is_created_in_clean_database_with_expected_columns_and_timestamps(): void
+    {
+        $this->assertTrue(Schema::hasTable('projects'));
+
+        $columns = [
+            'id', 'title', 'slug', 'short_description', 'description',
+            'category', 'cover_image', 'gallery', 'status', 'featured',
+            'order', 'external_url', 'project_url', 'github_url',
+            'meta_title', 'meta_description', 'og_image', 'published_at',
+            'created_at', 'updated_at',
+        ];
+
+        foreach ($columns as $column) {
+            $this->assertTrue(
+                Schema::hasColumn('projects', $column),
+                "A coluna {$column} não foi encontrada na tabela projects."
+            );
+        }
+
+        $project = Project::create([
+            'title' => 'Projeto Timestamps',
+            'slug' => 'projeto-timestamps',
+            'short_description' => 'Resumo',
+            'description' => 'Descrição',
+            'category' => 'Web',
+            'status' => 'draft',
+        ]);
+
+        $this->assertNotNull($project->created_at);
+        $this->assertNotNull($project->updated_at);
+        $this->assertInstanceOf(Carbon::class, $project->created_at);
+        $this->assertInstanceOf(Carbon::class, $project->updated_at);
+    }
+
+    public function test_project_controller_transform_rules_are_separated_and_testable(): void
+    {
+        $controller = new ProjectController();
+
+        $project = new Project([
+            'title' => 'Projeto Teste Isolado',
+            'slug' => 'projeto-teste-isolado',
+            'short_description' => 'Curta',
+            'description' => 'Completa',
+            'category' => 'Web',
+            'technologies' => ['React', 'PHP'],
+            'cover_image' => 'projects/capa.png',
+            'project_url' => 'https://app.com',
+            'github_url' => 'https://github.com/app',
+            'external_url' => 'https://externo.com',
+            'management_status' => 'planning',
+            'priority' => 'urgent',
+            'manager_id' => 1,
+            'progress' => 85,
+            'start_date' => '2026-01-01',
+            'due_date' => '2026-03-01',
+            'completed_at' => '2026-03-01 12:00:00',
+            'meta_title' => 'SEO Secret',
+        ]);
+        $project->id = 42;
+
+        $payload = $controller->transform($project);
+
+        $this->assertSame(42, $payload['id']);
+        $this->assertSame('Projeto Teste Isolado', $payload['title']);
+        $this->assertSame('/storage/projects/capa.png', $payload['cover_image']);
+        $this->assertSame(['React', 'PHP'], $payload['technologies']);
+
+        $this->assertArrayNotHasKey('management_status', $payload);
+        $this->assertArrayNotHasKey('priority', $payload);
+        $this->assertArrayNotHasKey('manager_id', $payload);
+        $this->assertArrayNotHasKey('progress', $payload);
+        $this->assertArrayNotHasKey('start_date', $payload);
+        $this->assertArrayNotHasKey('due_date', $payload);
+        $this->assertArrayNotHasKey('completed_at', $payload);
+        $this->assertArrayNotHasKey('meta_title', $payload);
+        $this->assertArrayNotHasKey('created_at', $payload);
+        $this->assertArrayNotHasKey('updated_at', $payload);
+    }
+
     public function test_unpublished_projects_never_appear_publicly(): void
     {
-        // Projeto publicado e destaque (deve aparecer)
         $published = Project::create([
             'title' => 'Projeto Publicado',
             'slug' => 'projeto-publicado',
@@ -26,7 +105,6 @@ class ProjectPublicQueryTest extends TestCase
             'published_at' => now()->subDay(),
         ]);
 
-        // Projeto em rascunho (não deve aparecer)
         Project::create([
             'title' => 'Projeto Rascunho',
             'slug' => 'projeto-rascunho',
@@ -37,7 +115,6 @@ class ProjectPublicQueryTest extends TestCase
             'featured' => true,
         ]);
 
-        // Projeto arquivado (não deve aparecer)
         Project::create([
             'title' => 'Projeto Arquivado',
             'slug' => 'projeto-arquivado',
@@ -48,7 +125,6 @@ class ProjectPublicQueryTest extends TestCase
             'featured' => true,
         ]);
 
-        // Projeto publicado com data futura (não deve aparecer ainda)
         Project::create([
             'title' => 'Projeto Futuro',
             'slug' => 'projeto-futuro',
@@ -72,7 +148,6 @@ class ProjectPublicQueryTest extends TestCase
 
     public function test_ordering_is_deterministic_even_with_equal_order(): void
     {
-        // Três projetos publicados com o mesmo valor de order (ex: 0)
         $p1 = Project::create([
             'title' => 'Projeto 1',
             'slug' => 'projeto-1',
@@ -111,7 +186,6 @@ class ProjectPublicQueryTest extends TestCase
         $response->assertOk();
         $titles = collect($response->json('data'))->pluck('title')->all();
 
-        // O desempate por id garante ordenação determinística
         $this->assertSame(['Projeto 1', 'Projeto 2', 'Projeto 3'], $titles);
     }
 
@@ -144,7 +218,6 @@ class ProjectPublicQueryTest extends TestCase
         $response->assertOk();
         $projectData = $response->json('data.0');
 
-        // Campos públicos previstos presentes
         $expectedFields = [
             'id', 'title', 'slug', 'short_description', 'description',
             'category', 'technologies', 'cover_image',
@@ -155,7 +228,6 @@ class ProjectPublicQueryTest extends TestCase
             $this->assertArrayHasKey($field, $projectData);
         }
 
-        // Dados internos desnecessários não devem ser vazados
         $forbiddenFields = [
             'management_status', 'priority', 'manager_id', 'progress',
             'start_date', 'due_date', 'completed_at',
@@ -184,10 +256,9 @@ class ProjectPublicQueryTest extends TestCase
             'completed_at' => '2026-10-15 18:30:00',
             'progress' => '80',
             'technologies' => ['PHP', 'Vue'],
-            'id' => 999, // Não deve ser atribuído em massa
+            'id' => 999,
         ]);
 
-        // Verificação dos casts
         $this->assertIsBool($project->featured);
         $this->assertTrue($project->featured);
 
@@ -204,8 +275,6 @@ class ProjectPublicQueryTest extends TestCase
 
         $this->assertIsArray($project->technologies);
 
-        // Mass assignment protegido: id não deve ter sido atribuído pelo construtor fillable
         $this->assertNull($project->id);
     }
 }
-
