@@ -131,6 +131,25 @@ class Project extends Model
         return $this->due_date->isPast() && ! $this->management_status->isFinal();
     }
 
+    public function scopePublished(Builder $query): Builder
+    {
+        return $query->where('status', 'published')
+            ->where(function (Builder $query) {
+                $query->whereNull('published_at')
+                    ->orWhere('published_at', '<=', now());
+            });
+    }
+
+    public function scopeFeatured(Builder $query): Builder
+    {
+        return $query->where('featured', true);
+    }
+
+    public function scopeOrdered(Builder $query): Builder
+    {
+        return $query->orderBy('order', 'asc')->orderBy('id', 'asc');
+    }
+
     public function scopeOverdue(Builder $query): Builder
     {
         return $query

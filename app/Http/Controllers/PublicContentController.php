@@ -13,10 +13,17 @@ class PublicContentController
 {
     public function projects()
     {
-        $projects = Project::query()
-            ->where('status', 'published')
-            ->where('featured', true)
-            ->orderBy('order')
+        $query = Project::query()
+            ->published()
+            ->ordered();
+
+        if (request()->has('featured')) {
+            $query->where('featured', request()->boolean('featured'));
+        } elseif (! request()->boolean('all')) {
+            $query->featured();
+        }
+
+        $projects = $query
             ->get([
                 'id', 'title', 'slug', 'short_description', 'description',
                 'category', 'technologies', 'cover_image',
@@ -77,8 +84,6 @@ class PublicContentController
         ]);
 
         $settings['footer_links'] = $current->footerLinks();
-
-        // Qualquer usuário do painel pode editar estes textos; o HTML é sanitizado na saída.
         $settings['privacy_policy'] = $current->privacy_policy ? Str::sanitizeHtml($current->privacy_policy) : null;
         $settings['terms_of_use'] = $current->terms_of_use ? Str::sanitizeHtml($current->terms_of_use) : null;
 
